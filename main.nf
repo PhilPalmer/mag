@@ -21,10 +21,10 @@ def helpMessage() {
 
     The typical command for running the pipeline is as follows:
 
-    nextflow run nf-core/mag --reads '*_R{1,2}.fastq.gz' -profile docker
+    nextflow run nf-core/mag --reads_folder 'reads' -profile docker
 
     Mandatory arguments:
-      --reads                       Path to input data (must be surrounded with quotes)
+      --reads_folder                Path to input data
       --three                       Sequence of 3' adapter to remove
       -profile                      Hardware config to use. docker / aws
 
@@ -52,6 +52,8 @@ if (params.help){
 params.name = false
 // params.fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
 params.multiqc_config = "$baseDir/conf/multiqc_config.yaml"
+params.reads_folder = ""
+params.reads_extension = "fastq.gz"
 params.email = false
 params.plaintext_email = false
 
@@ -69,9 +71,15 @@ if( !(workflow.runName ==~ /[a-z]+_[a-z]+/) ){
 /*
  * Create channels for input read files
  */
+if(params.singleEnd) {
+  reads_files="${params.reads_folder}/*${params.reads_extension}"
+} else {
+  reads_files="${params.reads_folder}/*_{1,2}.${params.reads_extension}"
+  
+}
 Channel
-    .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
-    .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
+    .fromFilePairs( reads_files, size: params.singleEnd ? 1 : 2 )
+    .ifEmpty { exit 1, "Cannot find any reads matching: ${reads_files}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
     .set { read_files_atropos }
 
 /*
@@ -91,7 +99,7 @@ log.info " nf-core/mag v${params.version}"
 log.info "========================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
-summary['Reads']        = params.reads
+summary['Reads']        = reads_files
 // summary['Fasta Ref']    = params.fasta
 summary['Data Type']    = params.singleEnd ? 'Single-End' : 'Paired-End'
 summary['Max Memory']   = params.max_memory
